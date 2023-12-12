@@ -32,7 +32,7 @@ Please Note:
 
 The current implementation does not work for time-varying number of objectives/variables, i.e. SDP12, SDP13. 
 
-The code was primarily tested in Linux/Mac with MATLAB 2020a/2022a. However, bugs may occur in a different operating system or other MATLAB versions. Any report on bugs are welcome and suggestions are much appreciated.
+The code was primarily tested in Linux/Mac with MATLAB 2020a/2022a. However, bugs may occur in a different operating system or other MATLAB versions. Any report on bugs is welcome and suggestions are much appreciated.
 
 # Cite Us
 Shouyong Jiang, Yong Wang, Yaru Hu, Qingyang Zhang, andShengxiang Yang (2023). Vector Autoregressive Evolution for Dynamic
