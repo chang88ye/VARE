@@ -275,6 +275,15 @@ function prob=problem(prob_id)
             prob.varDim=10;
             prob.objDim=3;
             prob.bounds=[zeros(1,2) -ones(1,prob.varDim-2);ones(1,2) 2*ones(1,prob.varDim-2)];
+        
+        %% Real-world applications
+        % Dynamic Hydro-Thermal Power Scheduling Problem (DHPSP) from Deb'07: dNSGA-II
+        case 601
+            prob.name='DHTPS';
+            prob.varDim=4;
+            prob.objDim=2;
+            prob.bounds=[20 30 40 50; 125 175 250 300];
+            prob.func=@(x,t)DHTPS(x, prob.bounds, t);
         otherwise
             error('Problem ID is out of range or undefined. Please check problem definition')
     end
@@ -555,7 +564,7 @@ end
      G=abs(sin(0.5*pi*t));
      F=1+100*sin(0.5*pi*t)^4;
 
-     temp=x(:,3:n);
+     temp=x(:,3:end);
      g=G+sum((temp-G).^2, 2);
 
 
@@ -759,4 +768,139 @@ function xf= F10(x,t)   %%%F10
     
     f=[f1,f2];
     xf=[x,f];
+end
+
+
+%% Dynamic Hydro-Thermal Power Scheduling Problem (DHPSP) (from Deb 2007)
+%% The problem is modified as a unconstrained problem with constraints as penalties
+% x and y are columnwise, the imput x must be inside the search space and
+% it could be a matrix
+function xf = DHTPS(x0, bounds, th)
+    global g_taut
+    taut=g_taut;
+    M=960/taut;
+    t_tau=48/M;
+    %%%%有变量次数t有关的控制参数
+    t=48*th/M;
+    if t<12
+        p = polyfit([0, 12],[1300, 900],1);
+        PDt = polyval(p,t); 
+    elseif t<24
+        p = polyfit([12, 24],[900, 1100],1);
+        PDt = polyval(p,t); 
+    elseif t<36
+        p = polyfit([24, 36],[1100, 1000],1);
+        PDt = polyval(p,t); 
+    elseif t<48
+        p = polyfit([36, 48],[1000, 1300],1);
+        PDt = polyval(p,t); 
+    else
+        error('maximum simulation time is 48 hours.')
+    end
+    
+    [N, ~]=size(x0);
+    
+    qudr=@(A, B, C, s)((-B)+s*((B.^2-4*A.*C)).^0.5)./(2*A); % s: +(1), -(-1)
+    
+    Wh=[125000, 286000]/M; % water head
+    
+    [a0, a1, a2]=deal([260, 250], [8.5, 9.8], [0.00986, 0.01140]);
+    
+    Pht=qudr(a2, a1, a0-Wh/t_tau,1); % the first two parameters can be analytically solved
+    
+    x=[repmat(Pht',1, N); x0']; 
+    
+    d=size(x, 1);
+    Bmat=10^(-6)*[49 14 15 15 20 17;14 45 16 20 18 15;15 16 39 10 12 12;15 20 10 40 14 10;20 18 12 14 35 11; 17 15 12 10 11 36];
+    
+    feas=false(1,N);
+    for n=1:N
+        Feasible=false;
+    
+    % vectorisation
+    %     for i=3:d
+    %         A=Bmat(i,i);
+    %         ix=[1:i-1, i+1:d];
+    %         B=2*Bmat(i,ix)*x(ix,:)-1;
+    %         
+    %         R=chol(Bmat(ix, ix));
+    %         C=PDt-sum(x(ix,:),1)+sum((R*x(ix,:)).^2,1);
+    %         
+    %         Pst=qudr(A, B, C);
+    %         if Pst>=bounds(1,i-2) && Pst<=bounds(2,i-2) % feasible
+    %             Feasible=true;
+    %             break;
+    %         end
+    %     end
+    
+        for i=3:d
+            A=Bmat(i,i);
+            ix=[1:i-1, i+1:d];
+            B=2*Bmat(i,ix)*x(ix,n)-1;
+            C=PDt-sum(x(ix,n),1)+sum(x(ix,n)'*Bmat(ix, ix)*x(ix,n),1);
+
+            for s=1:1 % logically should be s=0:1, but the first solution is always infeasible.
+                sg=1-2*s;
+                Pst=qudr(A, B, C, sg);
+                if Pst>=bounds(1,i-2) && Pst<=bounds(2,i-2) % feasible
+                    x(i,n)=Pst;
+                    Feasible=true;
+                    break;
+                end
+            end
+
+            if Feasible
+                break;
+            end
+        end
+        feas(n)=Feasible;
+    end
+    
+    
+    k3=60+ 1.8*x(3,:)+0.003*x(3,:).^2 +abs(140*sin(0.04 *20*x(3,:)));
+    k4=100+2.1*x(4,:)+0.0012*x(4,:).^2+abs(160*sin(0.038*30*x(4,:)));
+    k5=120+2.0*x(5,:)+0.0010*x(5,:).^2+abs(180*sin(0.037*40*x(5,:)));
+    k6=40 +1.8*x(6,:)+0.0015*x(6,:).^2+abs(200*sin(0.035*50*x(6,:)));    
+    y(1,:)       = t_tau*(k3+k4+k5+k6);
+    
+    kk3=50-0.555*x(3,:)+0.0150*x(3,:).^2+0.5773*exp(0.02446*x(3,:));
+    kk4=60-1.355*x(4,:)+0.0105*x(4,:).^2+0.4968*exp(0.02270*x(4,:));
+    kk5=45-0.600*x(5,:)+0.0080*x(5,:).^2+0.4860*exp(0.01948*x(5,:));
+    kk6=30-0.555*x(6,:)+0.0120*x(6,:).^2+0.5035*exp(0.02075*x(6,:));
+    
+    y(2,:)       = t_tau*(kk3+kk4+kk5+kk6); 
+    
+    penalty=1e5*(1+1/(1+th)); % make the penalty dynamically dependent on time point t
+    y(:,~feas)=y(:,~feas)+penalty;
+    
+%     B=10^(-6)*[49 14 15 15 20 17;14 45 16 20 18 15;15 16 39 10 12 12;15 20 10 40 14 10;20 18 12 14 35 11; 17 15 12 10 11 36];
+%     Ph=0;
+%    for z=1:6
+%         PPh=0;
+%         for zz=1:6
+%         PPh=PPh+x(z,:)*B(z,zz).*x(zz,:);
+%         end
+%         Ph=Ph+PPh;
+%    end
+% 
+%     c(1,:)       = x(3,:)+x(4,:)+x(5,:)+x(6,:)+x(1,:)+x(2,:)-Pdt-Ph; % =0
+%     c(2,:)       = 12*(260+8.5*x(1,:)+0.00986*x(1,:).^2)-125/48;  % =0 
+%     c(3,:)       = 12*(250+9.8*x(2,:)+0.01140*x(2,:).^2)-286/48; % =0
+%     
+%     % convert to standard form of solutions 
+%     y=y'; c=abs(c');
+%     
+%     % constrained dominance princciple: f=y if x is feasible else fmax+sum(c)
+%     % set threshold value delta and fmax
+%     delta=0.01; fmax=[35000, 20000];
+%     
+%     feas=all(c<delta,2);
+%     
+% %     f=y+repmat(sum(c,2), 1, 2);
+% 
+%     f=y;
+%     f(~feas,:)=repmat(fmax, sum(~feas),1)+sum(c(~feas,:),2);
+%     
+    xf=[x(3:end,:)', y'];
+    
 end
