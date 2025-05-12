@@ -35,6 +35,17 @@ disp(['==================== Solving problem ',prob.name, ' =====================
 
 Tg=T0+10*nt*taut; %set the termination genenerations: {T0 +10*nt*taut}
 
+% %%---DHTSP setting start --- 
+% %%comment out this block if other problems are tested
+% 
+% % Tmax=48; % 48 hours optimisation period
+% Tg=960; % total number of generations
+% M=Tg/taut; % number of changes 32 (taut=30) 48 (taut=20), 60 (taut=16), 96 (taut=10), 160 (taut=6) ...
+% T0=taut;  %t_tau=Tmax/M; % tau=1/4 to 12
+% nt=1;
+% 
+% %%---DHTSP setting ended ---
+
 %% Generate the reference directions (general approach)
 [W,N] = UniformPoint(N,objDim);
 % Largest acute angle between two neighbouring reference directions
