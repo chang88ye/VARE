@@ -16,11 +16,22 @@ prob=problem(probID);
 
 Tg=T0+10*nt*taut; %set the termination genenerations: {T0 +10*nt*taut}
 
+% %%---DHTSP setting start --- 
+% %%comment out this block if other problems are tested
+% 
+% % Tmax=48; % 48 hours optimisation period
+% Tg=960; % total number of generations
+% M=Tg/taut; % number of changes 32 (taut=30) 48 (taut=20), 60 (taut=16), 96 (taut=10), 160 (taut=6) ...
+% T0=taut;  %t_tau=Tmax/M; % tau=1/4 to 12
+% nt=1;
+% 
+% %%---DHTSP setting ended ---
+
 for run=1:runMax
     Archive=[];
 
     g=1;
-    
+
     %%%%%%%%%%%%%%%%%%initial population
     Qop=init_Pop(varDim,N,bounds);
     Pop=func(Qop,0);
@@ -32,7 +43,6 @@ for run=1:runMax
 
         t=prob.update_time(g, taut, nt, T0); % update time instant
         disp(['Evolve at generation ',num2str(g), ', time t= ', num2str(t), '; ----->']);
-
 
         checkvalue=checkChange(func, Pop,objDim,t, 0.1); % 10% population for change detection
         
@@ -46,15 +56,19 @@ for run=1:runMax
             HVt(changetime)=HV;
 
             Archive=[Archive;Pop];%%%%
-          
+            
             Pop=Tr_IPG_response(Archive,bounds,objDim,N,changetime,func,t);
-
+        else
+            try
+                QWE = RMMEAD_operator(Pop,varDim,objDim);
+                Qop=checkbound(QWE,bounds);
+            catch
+                MatingPool = TournamentSelection(2,N,FrontNo,-CrowdDis);
+                Qop=GA(Pop(MatingPool,1:varDim),bounds);
+            end
+            
+            Offspring= func(Qop, t); %% evaluate the new population
         end
-        
-        %%%%%%%%%%%%%%%%%%%%%%%%%  Evolutionary %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        QWE = RMMEAD_operator(Pop,varDim,objDim);
-        Qop=checkbound(QWE,bounds);
-        Offspring= func(Qop, t); %% evaluate the new population
 
         %%%%%%%%%%%%%%%%%%%%%%   selection the offspring from mix pop
         
