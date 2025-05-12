@@ -13,6 +13,17 @@ prob=problem(probID);
 
 Tg=T0+10*nt*taut; %set the termination genenerations: {T0 +10*nt*taut}
 
+% %%---DHTSP setting start --- 
+% %%comment out this block if other problems are tested
+% 
+% % Tmax=48; % 48 hours optimisation period
+% Tg=960; % total number of generations
+% M=Tg/taut; % number of changes 32 (taut=30) 48 (taut=20), 60 (taut=16), 96 (taut=10), 160 (taut=6) ...
+% T0=taut;  %t_tau=Tmax/M; % tau=1/4 to 12
+% nt=1;
+% 
+% %%---DHTSP setting ended ---
+
 for run=1:runMax
     
     Archive=[];
@@ -23,11 +34,12 @@ for run=1:runMax
     
     %%%%%%% evaluate initial population
     Pop=func(Qop,0);
-    
+    [Pop,FrontNo,CrowdDis] = EnvironmentalSelection(Pop,N,varDim,objDim);
+
     changetime=0;
     
     centerpop=zeros(Tg,varDim);
-
+    
     %%%%%%%%%%%%%%%%%%%%%Optimization
     tStart=tic;
     while g<=Tg
@@ -49,23 +61,26 @@ for run=1:runMax
             HVt(changetime)=HV;
 
             Archive=[Archive;Pop];%%%%
-            
+
             %%%%% saving centroids in an extenal archive
             centerpop(changetime,:)=mean(Pop(:,1:varDim),1);
             
-            Qop=pps_predit(Archive,centerpop,bounds,objDim,t,N,changetime,func);
+            Pop=pps_predit(Archive,centerpop,bounds,objDim,t,N,changetime,func);
+            Offspring=[];
+        else
+            try
+                QWE = RMMEAD_operator(Pop,varDim,objDim);
+                Qop=checkbound(QWE,bounds);
+            catch
+                MatingPool = TournamentSelection(2,N,FrontNo,-CrowdDis);
+                Qop=GA(Pop(MatingPool,1:varDim),bounds);
+            end
             
-
+            Offspring= func(Qop, t); %% evaluate the new population
         end
-        %%%%%%%%%%%%%%%%%%%%%%%%%  Evolutionary %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        QWE = RMMEAD_operator(Pop,varDim,objDim);
-        Qop=checkbound(QWE,bounds);
-        Offspring= func(Qop, t); %% evaluate the new population
 
         %%%%%%%%%%%%%%%%%%%%%%   selection the offspring from mix pop
-        Combin_Population=[Pop;Offspring];
-        Zop = EnvironmentalSelection(Combin_Population,N,varDim,objDim);
-        Pop=Zop;
+        [Pop,FrontNo,CrowdDis] = EnvironmentalSelection([Pop;Offspring],N,varDim,objDim);
         
         g=g+1;
     end
