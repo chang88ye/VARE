@@ -28,23 +28,36 @@ function [Archives,Time, IGDs, HVs, SPs]=SGEA(probID,N,runMax)
     eta = 0.1; % ratio of immigrants
     
     operator = @RMMEAD; % choose RMMEAD operator (default) for reproduction, another option is @EAreal.
-    %operator = @EAreal;   
+    %operator = @EAreal; 
+
+    % get change severity/frequency and the past number of generations at which first change occurs
+    
+    % method 1: get default values from problem definition
+    %[T0, taut, nt] =deal(instance.dynPar(1),instance.dynPar(2),instance.dynPar(3));
+    
+    % method 2: get global values initialised in the main function
+    [nt, taut, T0]=dynamic_param(); 
+    
+    Tg=T0+10*nt*taut; %set the termination genenerations: {T0 +10*nt*taut}
+    
+    
+    % %%---DHTSP setting start --- 
+    % %%comment out this block if other problems are tested
+    % 
+    % % Tmax=48; % 48 hours optimisation period
+    % Tg=960; % total number of generations
+    % M=Tg/taut; % number of changes 32 (taut=30) 48 (taut=20), 60 (taut=16), 96 (taut=10), 160 (taut=6) ...
+    % T0=taut;  %t_tau=Tmax/M; % tau=1/4 to 12
+    % nt=1;
+    % 
+    % %%---DHTSP setting ended ---
     
     %% Start of the Main Loop
     for run=1:runMax
     
         %%%% creat problem instance
         instance=problem(probID);
-        
-        % get change severity/frequency and the past number of generations at which first change occurs
-        
-        % method 1: get default values from problem definition
-        %[T0, taut, nt] =deal(instance.dynPar(1),instance.dynPar(2),instance.dynPar(3));
-        
-        % method 2: get global values initialised in the main function
-        [nt, taut, T0]=dynamic_param(); 
-        
-        Tg=T0+10*nt*taut; %set the termination genenerations: {T0 +10*nt*taut}
+
         instance.dynPar=[T0, taut, nt];
         
         objIdx=instance.varDim+1:instance.varDim+instance.objDim; % intermediate variable to simplify code
