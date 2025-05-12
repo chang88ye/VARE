@@ -4,7 +4,7 @@ function [Archives,Time, IGDs, HVs, SPs]=MOEADSVR(probID,N,runmax)
 % Modified by Dr. Shouyong Jiang on 4/1/2023
 
 %%%%%%%%Algorithmic parameters%%%%%%%%%%%%%%%%%%%%
-niche=floor(N/5);%邻域规模
+niche=floor(N/5);% size of neighbourhood
 F=0.5;
 CR=0.5;
 
@@ -22,19 +22,28 @@ prob=problem(probID);
 
 Tg=T0+10*nt*taut; %{T0 +10*nt*taut}
 
+% %%---DHTSP setting start --- 
+% %%comment out this block if other problems are tested
+% 
+% % Tmax=48; % 48 hours optimisation period
+% Tg=960; % total number of generations
+% M=Tg/taut; % number of changes 32 (taut=30) 48 (taut=20), 60 (taut=16), 96 (taut=10), 160 (taut=6) ...
+% T0=taut;  %t_tau=Tmax/M; % tau=1/4 to 12
+% nt=1;
+% 
+% %%---DHTSP setting ended ---
+
 for run=1:runmax
     Archive=[];
-    %%%%%%%%%%%输出初始权重矩阵及每个个体对应的邻域个体指标
+    
     [start_weight,neighbour_indexMatrix]=init_weights(N,niche,objDim);
-  
-    %%%%%%%%%%%%%%%%%%%%%%%%%%种群正常进化
+
     g=1;
     Qop=init_Pop(varDim,N,bounds);
-    %%%%%%%计算初始种群对应的函数值 并保存在最后objDim维
+    % evaluate initial population
     Pop= func(Qop, 0); 
-    %更新理想点;
-    
-    idealpoint=ones(1,objDim)*inf;  %初始化理想点均为无穷
+
+    idealpoint=ones(1,objDim)*inf;  % ideal point initialisation
     idealpoint=min(idealpoint,min(Pop(:,varDim+1:end), [],1)); 
     
     changetime=0;
@@ -45,50 +54,47 @@ for run=1:runmax
         checkvalue=checkChange(func, Pop,objDim, t, 0.1); % 10% population for change detection
         disp(['Evolve at generation ',num2str(g), ', time t= ', num2str(t), '; ----->']);
         
-        if checkvalue==1  %%说明变化了
+        if checkvalue==1  % in the event of change
             changetime=changetime+1;
             
-            [IGD,SP,HV]=Performance(Pop(:,varDim+1:end),prob,t-1);%%%计算IGD与SP，
+            [IGD,SP,HV]=Performance(Pop(:,varDim+1:end),prob,t-1);%%% calculate performance indicators
 
             IGDt(changetime)=IGD;
             SPt(changetime)=SP;
             HVt(changetime)=HV;
-
+    
             Archive=[Archive;Pop];%%%%
-            Pop=svr_response(Archive,bounds,objDim,N,changetime,func,t);%用于应对变化产生新种群个体        
+            
+            Pop=svr_response(Archive,bounds,objDim,N,changetime,func,t);%SVR-style change response      
                 
             idealpoint=min(Pop(:,varDim+1:end), [], 1);
+            
         end
            
         for i=1:length(Pop)
-            %%%%每一个个体执行进化操作生成一个新的个体
+            % one-by-one individual evolution
             indPop=genetic_operate(neighbour_indexMatrix,Pop,i,F,CR,bounds,varDim);
             indPop=checkbound(indPop,bounds);
-            %评估个体
             indPop=func(indPop,t);
             
-            %                 FES=FES+1;
-            %%每次产生新个体更新理想点
+            % update ideal point
             idealpoint=min(idealpoint,indPop(varDim+1:end));
             
-            %%%%更新邻域
-            %个体邻域指标
+            %%%% update neighbourhood
             neighbourindex=neighbour_indexMatrix(i,:);
-            %             %%%个体对应的权重
-            neighbour_weight=start_weight(neighbourindex,:);  %邻域个体指标对应的权重矩阵
-            %             %%%邻域个体
+            %  weights that neighbouring members have
+            neighbour_weight=start_weight(neighbourindex,:);  
+            %  neighbouring members
             neighbour_member=Pop(neighbourindex,:);
             
-            %%%新个体对应的切贝雪夫值
-            
+            % chebysheff decomposiiton
             new_tevalue=subjective_te(neighbour_weight,indPop,idealpoint,varDim);
-%                         new_tevalue=subjective_ws(neighbour_weight,indPop,D,Dim);
             
             old_tevalue=subjective_te(neighbour_weight,neighbour_member,idealpoint,varDim);
-%                         old_tevalue=subjective_ws(neighbour_weight,neighbour_member,D,Dim);
-            for k=1:niche %邻域个体数
+
+            for k=1:niche % update at most niche members by new individual
                 if new_tevalue(k)<old_tevalue(k)
-                    Pop(neighbourindex(k),:)=indPop;  %%%然而权重不变，只是替换了个体
+                    Pop(neighbourindex(k),:)=indPop;
                 end
             end
             
